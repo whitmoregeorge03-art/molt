@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Molt — Waitlist Admin</title>
+  <style>
+    :root {
+      --bg: #0b0b0c;
+      --card: #141515;
+      --text: #f2ebdd;
+      --muted: #9d968a;
+      --border: #2a2e2c;
+      --accent: #d8b24a;
+      --danger: #c78686;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+    }
+
+    .wrap {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .sub {
+      margin: 0 0 20px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .card {
+      border: 1px solid var(--border);
+      background: var(--card);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    input {
+      width: 100%;
+      height: 40px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #101111;
+      color: var(--text);
+      padding: 0 12px;
+      font-size: 14px;
+    }
+
+    button {
+      height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #1a1c1b;
+      color: var(--text);
+      padding: 0 14px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #1b1b1b;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .meta {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .error {
+      color: var(--danger);
+      margin-top: 10px;
+      font-size: 13px;
+      min-height: 18px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .nowrap { white-space: nowrap; }
+
+    @media (max-width: 700px) {
+      .row {
+        grid-template-columns: 1fr;
+      }
+      button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>The Molt — Waitlist Admin</h1>
+    <p class="sub">Private view. Enter your admin token to load subscribers.</p>
+
+    <div class="card">
+      <div class="row">
+        <input id="token" type="password" placeholder="Enter admin token" autocomplete="off" />
+        <button id="load" class="primary">Load list</button>
+        <button id="download">Download CSV</button>
+      </div>
+      <div id="meta" class="meta">No data loaded yet.</div>
+      <div id="error" class="error"></div>
+    </div>
+
+    <div class="card">
+      <table id="table">
+        <thead>
+          <tr>
+            <th class="nowrap">ID</th>
+            <th>Email</th>
+            <th>Source</th>
+            <th class="nowrap">Created</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="4" style="color:var(--muted)">No rows yet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const tokenInput = document.getElementById('token');
+    const loadBtn = document.getElementById('load');
+    const downloadBtn = document.getElementById('download');
+    const meta = document.getElementById('meta');
+    const error = document.getElementById('error');
+    const tbody = document.getElementById('tbody');
+
+    const savedToken = localStorage.getItem('moltAdminToken');
+    if (savedToken) tokenInput.value = savedToken;
+
+    function clearError() { error.textContent = ''; }
+
+    function setError(message) { error.textContent = message || 'Something went wrong.'; }
+
+    function renderRows(rows) {
+      if (!rows || rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted)">No subscribers found.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = rows.map((row) => `
+        <tr>
+          <td class="nowrap">${row.id}</td>
+          <td>${row.email}</td>
+          <td>${row.source || ''}</td>
+          <td class="nowrap">${row.created_at || ''}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function loadList() {
+      clearError();
+      const token = tokenInput.value.trim();
+
+      if (!token) {
+        setError('Please enter your admin token.');
+        return;
+      }
+
+      localStorage.setItem('moltAdminToken', token);
+      loadBtn.disabled = true;
+      loadBtn.textContent = 'Loading…';
+
+      try {
+        const res = await fetch('/api/admin/list?limit=1000', {
+          headers: { 'x-admin-token': token }
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || 'Failed to load waitlist.');
+        }
+
+        meta.textContent = `Total subscribers: ${data.total} • Showing ${data.returned} newest`;
+        renderRows(data.rows);
+      } catch (e) {
+        setError(e.message || 'Failed to load waitlist.');
+      } finally {
+        loadBtn.disabled = false;
+        loadBtn.textContent = 'Load list';
+      }
+    }
+
+    async function downloadCsv() {
+      clearError();
+      const token = tokenInput.value.trim();
+
+      if (!token) {
+        setError('Please enter your admin token first.');
+        return;
+      }
+
+      localStorage.setItem('moltAdminToken', token);
+      downloadBtn.disabled = true;
+      downloadBtn.textContent = 'Preparing…';
+
+      try {
+        const res = await fetch('/api/admin/export', {
+          headers: { 'x-admin-token': token }
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Failed to export CSV.');
+        }
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `molt-waitlist-${new Date().toISOString().slice(0,10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        setError(e.message || 'Failed to export CSV.');
+      } finally {
+        downloadBtn.disabled = false;
+        downloadBtn.textContent = 'Download CSV';
+      }
+    }
+
+    loadBtn.addEventListener('click', loadList);
+    downloadBtn.addEventListener('click', downloadCsv);
+  </script>
+</body>
+</html>
