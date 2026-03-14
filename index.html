@@ -454,7 +454,7 @@
   </footer>
 
   <script>
-    function handleSubmit() {
+    async function handleSubmit() {
       const input = document.getElementById('emailInput');
       const btn = document.getElementById('submitBtn');
       const formRow = document.getElementById('formRow');
@@ -471,14 +471,35 @@
         return;
       }
 
+      const originalBtnText = btn.textContent;
       btn.textContent = '…';
       btn.disabled = true;
 
-      setTimeout(() => {
+      try {
+        const response = await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            source: window.location.hostname || 'the-molt.com'
+          })
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error || 'Could not save your email. Please try again.');
+        }
+
         formRow.style.display = 'none';
         note.style.display = 'none';
         success.style.display = 'block';
-      }, 600);
+      } catch (error) {
+        note.textContent = error.message || 'Something went wrong. Please try again.';
+        note.style.color = '#C78686';
+        btn.disabled = false;
+        btn.textContent = originalBtnText;
+      }
     }
 
     document.getElementById('emailInput').addEventListener('keydown', function(e) {

@@ -1,0 +1,8 @@
+name = "molt"
+compatibility_date = "2026-03-14"
+pages_build_output_dir = "."
+
+[[d1_databases]]
+binding = "MOLT_DB"
+database_name = "molt-waitlist"
+database_id = "0b7b29a6-e65a-4e6e-9c5f-87bf695d0618"
